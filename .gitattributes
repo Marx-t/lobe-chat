@@ -1,0 +1,3 @@
+
+# Keep our custom sync workflow configuration
+.github/workflows/sync.yml merge=ours
