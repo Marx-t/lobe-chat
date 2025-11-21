@@ -1,0 +1,89 @@
+name: Custom Upstream Sync (Next Branch)
+
+permissions:
+  contents: write
+  issues: write
+  actions: write
+
+on:
+  schedule:
+    - cron: '30 */6 * * *' # every 6 hours, offset by 30 minutes from main sync
+  workflow_dispatch:
+
+jobs:
+  sync_next_branch:
+    name: Sync from upstream next branch
+    runs-on: ubuntu-latest
+    if: ${{ github.event.repository.fork }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream remote
+        run: |
+          git remote add upstream https://github.com/lobehub/lobe-chat.git || true
+          git fetch upstream
+
+      - name: Sync with upstream next branch
+        id: sync
+        run: |
+          echo "Current branch: $(git branch --show-current)"
+          echo "Fetching upstream next..."
+          git fetch upstream next
+
+          echo "Merging upstream/next..."
+          if git merge upstream/next --no-edit; then
+            echo "✅ Merge successful"
+            echo "sync_status=success" >> $GITHUB_OUTPUT
+          else
+            echo "❌ Merge failed - conflicts detected"
+            echo "sync_status=conflict" >> $GITHUB_OUTPUT
+            git merge --abort
+            exit 1
+          fi
+
+      - name: Push changes
+        if: steps.sync.outputs.sync_status == 'success'
+        run: |
+          git push origin main
+
+      - name: Create conflict issue
+        if: failure()
+        uses: actions-cool/issues-helper@v3
+        with:
+          actions: 'create-issue'
+          title: '⚠️ 自定义同步失败 | Custom Sync Conflict'
+          labels: '⚠️ Sync Conflict'
+          body: |
+            ## 🔄 Custom Sync from Next Branch Failed
+
+            The automatic sync from `lobehub/lobe-chat:next` to your fork's `main` branch encountered conflicts.
+
+            从 `lobehub/lobe-chat:next` 分支的自动同步遇到冲突。
+
+            ### Steps to resolve | 解决步骤:
+
+            ```bash
+            # Fetch latest changes
+            git fetch upstream
+
+            # Try to merge manually
+            git merge upstream/next
+
+            # Resolve conflicts, then:
+            git add .
+            git commit -m "🔀 merge: resolve conflicts from upstream/next"
+            git push origin main
+            ```
+
+            ### Conflict occurred at | 冲突发生时间
+            ${{ github.event.head_commit.timestamp }}
+
+            [View Action Run](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }})
