@@ -19,7 +19,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
         with:
+          ref: main
           fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Configure Git
         run: |
@@ -29,30 +31,30 @@ jobs:
       - name: Add upstream remote
         run: |
           git remote add upstream https://github.com/lobehub/lobe-chat.git || true
-          git fetch upstream
+          git fetch upstream next
 
       - name: Sync with upstream next branch
         id: sync
         run: |
           echo "Current branch: $(git branch --show-current)"
-          echo "Fetching upstream next..."
-          git fetch upstream next
+          echo "Current HEAD: $(git rev-parse --short HEAD)"
+          echo "Upstream next: $(git rev-parse --short upstream/next)"
 
-          echo "Merging upstream/next..."
-          if git merge upstream/next --no-edit; then
+          echo "Attempting to merge upstream/next..."
+          if git merge upstream/next --no-edit -m "🔀 chore: sync from upstream next branch"; then
             echo "✅ Merge successful"
             echo "sync_status=success" >> $GITHUB_OUTPUT
           else
             echo "❌ Merge failed - conflicts detected"
             echo "sync_status=conflict" >> $GITHUB_OUTPUT
-            git merge --abort
+            git merge --abort || true
             exit 1
           fi
 
       - name: Push changes
         if: steps.sync.outputs.sync_status == 'success'
         run: |
-          git push origin main
+          git push origin main --verbose
 
       - name: Create conflict issue
         if: failure()
