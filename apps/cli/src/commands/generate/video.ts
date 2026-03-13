@@ -30,7 +30,7 @@ export function registerVideoCommand(parent: Command) {
         const client = await getTrpcClient();
         const topicId = await client.generationTopic.createTopic.mutate({ type: 'video' });
 
-        const params: Record<string, any> = { prompt };
+        const params: { prompt: string } & Record<string, any> = { prompt };
         if (options.aspectRatio) params.aspectRatio = options.aspectRatio;
         if (options.duration) params.duration = Number.parseInt(options.duration, 10);
         if (options.resolution) params.resolution = options.resolution;
@@ -51,12 +51,20 @@ export function registerVideoCommand(parent: Command) {
 
         const data = r.data || r;
         console.log(`${pc.green('✓')} Video generation started`);
-        if (data.generationId) {
-          console.log(`  Generation ID: ${pc.bold(data.generationId)}`);
+        if (data.batch?.id) console.log(`  Batch ID: ${pc.bold(data.batch.id)}`);
+
+        const generations = data.generations || [];
+        if (generations.length > 0) {
+          for (const gen of generations) {
+            if (gen.asyncTaskId) {
+              console.log(`  Generation ${pc.bold(gen.id)} → Task ${pc.dim(gen.asyncTaskId)}`);
+            }
+          }
+          console.log();
+          console.log(
+            pc.dim('Use "lh generate status <generationId> <taskId>" to check progress.'),
+          );
         }
-        console.log(
-          pc.dim('Video generation runs asynchronously. Check status or wait for notification.'),
-        );
       },
     );
 }
